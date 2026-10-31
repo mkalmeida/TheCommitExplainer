@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Explain the commit</title>
+    <style>
+        body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; }
+        input { width: 70%; padding: .4rem; }
+        ul { list-style: none; padding: 0; }
+        li button { width: 100%; text-align: left; padding: .5rem; margin: .2rem 0; cursor: pointer; }
+        small { color: #666; }
+        pre { background: #f4f4f4; padding: 1rem; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+<h1>Explain the commit</h1>
+<input id="caminho" placeholder="https://github.com/user/repository  ou  C:/projects/my-repo">
+<button id="listar">Listar commits</button>
+<p id="erro" style="color:#b00"></p>
+<ul id="lista"></ul>
+<pre id="saida"></pre>
+
+<script>
+    const $ = id => document.getElementById(id);
+
+    const origem = () => {
+        const v = $("caminho").value.trim();
+        return v.startsWith("http") ? { url: v } : { caminho: v };
+    };
+
+    async function chamar(url, corpo) {
+        const r = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(corpo)
+        });
+        const dados = await r.json();
+        if (!r.ok) throw new Error(dados.erro || "Erro inesperado.");
+        return dados;
+    }
+
+    $("listar").addEventListener("click", async () => {
+        $("erro").textContent = "";
+        $("saida").textContent = "";
+        $("lista").replaceChildren();
+        try {
+            const commits = await chamar("/api/commits", origem());
+            commits.forEach(c => {
+                const li = document.createElement("li");
+                const b = document.createElement("button");
+                b.textContent = c.mensagem + "  ";
+                const s = document.createElement("small");
+                s.textContent = c.hash.substring(0, 7) + " · " + c.autor + " · " + c.data;
+                b.appendChild(s);
+                b.addEventListener("click", () => explicar(c.hash));
+                li.appendChild(b);
+                $("lista").appendChild(li);
+            });
+        } catch (e) { $("erro").textContent = e.message; }
+    });
+
+    async function explicar(hash) {
+        $("erro").textContent = "";
+        $("saida").textContent = "Pensando...";
+        try {
+            const d = await chamar("/api/explicar", { ...origem(), hash });
+            $("saida").textContent = d.explicacao +
+                (d.diffCortado ? "\n\n(Aviso: o commit era grande e só o começo foi analisado.)" : "");
+        } catch (e) { $("saida").textContent = ""; $("erro").textContent = e.message; }
+    }
+</script>
+</body>
+</html>
